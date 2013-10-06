@@ -1,0 +1,58 @@
+<extend name="Public/base" />
+<block name="body">
+	<!-- 标题栏 -->
+	<div class="main-title">
+		<h2>权限管理</h2>
+	</div>
+
+    <div class="tools auth-botton">
+        <a id="add-group" class="btn" href="{:U('createGroup')}">新 增</a>
+        <a url="{:U('changestatus',array('method'=>'resumeGroup'))}" class="btn ajax-post" target-form="ids" >启 用</a>
+        <a url="{:U('changestatus',array('method'=>'forbidGroup'))}" class="btn ajax-post" target-form="ids" >禁 用</a>
+        <a url="{:U('changestatus',array('method'=>'deleteGroup'))}" class="btn ajax-post confirm" target-form="ids" >删 除</a>
+    </div>
+	<!-- 数据列表 -->
+	<div class="data-table table-striped">
+        <?php
+            $thead = array(
+                '_html'=>array(
+                    'th'=>'<input class="check-all" type="checkbox"/>',
+                    'td'=>'<input class="ids" type="checkbox" name="id[]" value="$id" />',
+                ),
+                'title'=>array(
+                    '_title'  =>'用户组',
+                    'tag'    =>'a',
+                    'href'   =>'AuthManager/editgroup?id=$id',
+                ),
+                'description'=>array(
+                    '_title'=>'描述',
+                    'tag'   =>'span',
+                    'title' =>'$description',
+                    'func'  => 'mb_strimwidth($description,0,60,"...","utf-8")',
+                ),
+                'status_text'=>'状态',
+                '操作'=>array(
+                    '禁用'=>array( 'href' => 'AuthManager/changeStatus?method=forbidGroup&id=$id', 'class'=>'ajax-get', 'condition'=>'$status==1',), 
+                    '启用'=>array( 'href' => 'AuthManager/changeStatus?method=resumeGroup&id=$id', 'class'=>'ajax-get', 'condition'=>'$status==0',), 
+                    '删除'=>array( 'href' => 'AuthManager/changeStatus?method=deleteGroup&id=$id', 'class'=>'confirm ajax-get' ),
+                ),
+                '授权'=>array(
+                    '访问授权'=>'AuthManager/access?group_name=$title&group_id=$id',
+                    '成员授权'=>'AuthManager/user?group_name=$title&group_id=$id',
+                    '分类授权'=>'AuthManager/category?group_name=$title&group_id=$id',
+                ),
+            );
+            echo $_table_list = $__controller__->tableList($_list,$thead);
+        ?>
+	</div>
+    <div class="page">
+        {$_page}
+    </div>
+</block>
+
+<block name="script">
+<script type="text/javascript" charset="utf-8">
+    //导航高亮
+$('.side-sub-menu').find('a[href="{:U('AuthManager/index')}"]').closest('li').addClass('current');
+</script>
+</block>

@@ -1,0 +1,56 @@
+<extend name="Public/base"/>
+
+<block name="body">
+	<!-- 标题栏 -->
+	<div class="main-title">
+		<h2>行为列表</h2>
+	</div>
+
+    <div>
+        <button class="btn" id="action_add" url="{:U('user/addaction')}">新 增</button>
+        <button class="btn ajax-post" target-form="ids" url="{:u('setstatus',array('status'=>1))}" >启 用</button>
+        <button class="btn ajax-post" target-form="ids" url="{:u('setstatus',array('status'=>0))}">禁 用</button>
+        <button class="btn ajax-post confirm" target-form="ids" url="{:U('setStatus',array('status'=>-1))}">删 除</button>
+    </div>
+	<!-- 数据列表 -->
+	<div class="data-table">
+        <?php
+            $thead = array(
+                '_html'=>array(
+                    '_th'=>'row-selected',
+                    'th'=>'<input class="check-all" type="checkbox"/>',
+                    'td'=>'<input class="ids" type="checkbox" name="ids[]" value="$id" />',
+                ),
+                'id'=>'编号',
+                'name'=>'行为标识',
+                'title'=>array(
+                    '_title'=>'行为名称',
+                    'tag'   =>'span',
+                    'href'  =>'editAction?id=$id'
+                ),
+                'remark'=>'规则说明',
+                'status_text'=>'状态',
+                '操作'=>array(
+                    '禁用'=>array( 'href' => 'User/setStatus?status=0&ids=$id', 'class'=>'ajax-get', 'condition'=>'$status==1',),
+                    '启用'=>array( 'href' => 'User/setStatus?status=1&ids=$id', 'class'=>'ajax-get', 'condition'=>'$status==0',),
+					'编辑'=>array( 'href' => 'User/editAction?id=$id'),
+                    '删除'=>array( 'href' => 'User/setStatus?status=-1&ids=$id', 'class'=>'confirm ajax-get' ),
+                ),
+            );
+            echo $_table_list = $__controller__->tableList($_list,$thead);
+        ?>
+	</div>
+	<!-- 分页 -->
+	<div class="page">{$_page}</div>
+	<!-- /分页 -->
+
+</block>
+<block name="script">
+<script type="text/javascript">
+$(function(){
+	$("#action_add").click(function(){
+		window.location.href = $(this).attr('url');
+	})
+})
+</script>
+</block>

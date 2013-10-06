@@ -1,0 +1,328 @@
+<extend name="Public/base" />
+
+<!-- 子导航 -->
+<block name="sidebar">
+    <include file="sidemenu" />
+</block>
+
+<block name="body">
+	<div class="main-title cf">
+		<h2>
+			<if condition="ACTION_NAME eq 'add'">新增<else/>编辑</if>{$info.model_id|get_document_model='title'} [
+			<volist name="rightNav" id="nav">
+			<a href="{:U('article/index','cate_id='.$nav['id'])}">{$nav.title}</a>
+			<if condition="count($rightNav) gt $i"><i class="ca"></i></if>
+			</volist>
+			<present name="article">：<a href="{:U('article/index','cate_id='.$info['category_id'].'&pid='.$article['id'])}">{$article.title}</a></present>
+			]
+		</h2>
+	</div>
+	<!-- 标签页导航 -->
+<div class="tab-wrap">
+	<ul class="tab-nav nav">
+		<li data-tab="tab1" class="current"><a href="javascript:void(0);">基 础</a></li>
+		<li data-tab="tab2"><a href="javascript:void(0);">高 级</a></li>
+	</ul>
+	<div class="tab-content">
+	<!-- 表单 -->
+	<form id="form" action="{:U('update')}" method="post" class="form-horizontal">
+		<!-- 基础文档模型 -->
+		<div id="tab1" class="tab-pane in tab1">
+
+			<div class="form-item cf" sort="{$field['title']}">
+				<label class="item-label">文档标题<span class="check-tips">（请输入标题）</span></label>
+				<div class="controls">
+					<input type="text" class="text input-large" name="title" value="{$info.title}">
+				</div>
+			</div>
+			<div class="form-item cf" sort="{$field['name']}">
+				<label class="item-label">文档标识<span class="check-tips">（文档标识主要用于URL优化，对文章的URL没有要求则可不填）</span></label>
+				<div class="controls">
+					<input type="text" class="text input-large" name="name" value="{$info.name}">
+				</div>
+			</div>
+			<div class="form-item cf" sort="{$field['type']}">
+				<label class="item-label">文档类型<span class="check-tips">（文档类型标识了文档的显示结构，一般普通文章选择主题）</span></label>
+				<div class="controls">
+					<select name="type">
+						<volist name="type_list" id="type">
+							<option value="{$key}">{$type}</option>
+						</volist>
+					</select>
+				</div>
+			</div>
+			<div class="form-item cf" sort="{$field['description']}">
+				<label class="item-label">文档摘要<span class="check-tips">（请输入简介）</span></label>
+				<div class="controls">
+					<label class="textarea input-large">
+						<textarea name="description">{$info.description}</textarea>
+					</label>
+				</div>
+			</div>
+		</div>
+
+		<div id="tab2" class="tab-pane tab2">
+			<div class="form-item cf" sort="{$field['level']}">
+				<label class="item-label">优先级<span class="check-tips">（数字越大，排序越靠前）</span></label>
+				<div class="controls">
+					<input type="text" class="text input-large" name="level" value="{$info.level|default=0}">
+				</div>
+			</div>
+			<div class="form-item cf" sort="{$field['link_id']}">
+				<label class="item-label">外链地址</label>
+				<div class="controls">
+					<input type="text" class="text input-large" name="link_id" value="{$info.link_id|get_link}">
+				</div>
+			</div>
+			<div class="form-item cf" sort="{$field['create_time']}">
+				<label class="item-label">发布时间<span class="check-tips">（格式: yyyy-mm-dd hh:ii）</span></label>
+				<div class="controls">
+					<input id="create_time" type="text" class="text input-large" name="create_time" value="{$info.create_time}" />
+				</div>
+			</div>
+			<div class="form-item cf" sort="{$field['dateline']}">
+				<label class="item-label">截止时间<span class="check-tips">（格式: yyyy-mm-dd hh:ii）</span></label>
+				<div class="controls">
+					<input id="dateline" type="text" class="text input-large" name="dateline" value="{$info.dateline}" />
+				</div>
+			</div>
+			<div class="form-item cf" sort="{$field['position']}">
+				<label class="item-label">推荐位置</label>
+				<div class="controls">
+					<volist name=":C('DOCUMENT_POSITION')" id="position">
+						<label class="checkbox"><input type="checkbox" name="position[]" value="{$key}" <if condition="check_document_position($info['position'],$key)">checked="checked"</if>>{$position}</label>
+					</volist>
+				</div>
+			</div>
+			<div class="form-item cf" sort="{$field['display']}">
+				<label class="item-label">可见性</label>
+				<div class="controls">
+					<volist name=":C('DOCUMENT_DISPLAY')" id="title">
+						<label class="radio"><input type="radio" name="display" value="{$key}">{$title}</label>
+					</volist>
+				</div>
+			</div>
+			<div class="form-item cf" sort="{$field['cover_id']}">
+				<label class="item-label">封面图片</label>
+				<div class="controls">
+					<input type="file" id="upload_picture">
+					<input type="hidden" id="cover_id" name="cover_id" value="{$info.cover_id}"/>
+					<div class="upload-img-box">
+					<notempty name="info['cover_id']">
+						<div class="upload-pre-item"><img src="{$info.cover_id|get_cover='path'}"/></div>
+					</notempty>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div id="tab3" class="tab-pane tab3 hidden">
+			<!-- 引入扩展文档模型 -->
+			{$extend}
+		</div>
+
+		<div class="form-item cf">
+			<button class="btn submit-btn ajax-post hidden" id="submit" type="submit" target-form="form-horizontal">确 定</button>
+			<a class="btn btn-return" href="{:U('article/index?cate_id='.$cate_id)}">返 回</a>
+			<if condition="C('OPEN_DRAFTBOX') and (ACTION_NAME eq 'add' or $info['status'] eq 3)">
+			<button class="btn save-btn" url="{:U('article/autoSave')}" target-form="form-horizontal" id="autoSave">
+				存草稿
+			</button>
+			</if>
+			<input type="hidden" name="id" value="{$info.id}"/>
+			<input type="hidden" name="pid" value="{$info.pid}"/>
+			<input type="hidden" name="model_id" value="{$info.model_id}"/>
+			<input type="hidden" name="category_id" value="{$info.category_id}">
+		</div>
+	</form>
+	</div>
+</div>
+</block>
+
+<block name="script">
+<link href="__STATIC__/datetimepicker/css/datetimepicker.css" rel="stylesheet" type="text/css">
+<php>if(C('COLOR_STYLE')=='blue_color') echo '<link href="__STATIC__/datetimepicker/css/datetimepicker_blue.css" rel="stylesheet" type="text/css">';</php>
+<link href="__STATIC__/datetimepicker/css/dropdown.css" rel="stylesheet" type="text/css">
+<script type="text/javascript" src="__STATIC__/uploadify/jquery.uploadify.min.js"></script>
+<script type="text/javascript" src="__STATIC__/datetimepicker/js/bootstrap-datetimepicker.min.js"></script>
+<script type="text/javascript" src="__STATIC__/datetimepicker/js/locales/bootstrap-datetimepicker.zh-CN.js" charset="UTF-8"></script>
+<script type="text/javascript">
+
+Think.setValue("type", {$info.type|default='""'});
+Think.setValue("display", {$info.display|default=0});
+
+$('#submit').click(function(){
+	$('#form').submit();
+});
+
+(function($){
+	//上传文件
+	/* 初始化上传插件 */
+	$("#download-file").uploadify({
+        "height"          : 30,
+        "swf"             : "__STATIC__/uploadify/uploadify.swf",
+        "fileObjName"     : "download",
+        "buttonText"      : "上传文件",
+        "uploader"        : "{:U('File/upload',array('session_id'=>session_id()))}",
+        "width"           : 120,
+        'removeTimeout'   : 1,
+        "onUploadSuccess" : uploadSuccess
+    });
+
+	/* 文件上传成功回调函数 */
+    function uploadSuccess(file, data){
+    	var data = $.parseJSON(data);
+        if(data.status){
+        	$("input[name=file]").val(data.data);
+        	$("input[name=file]").parent().find('.upload-img-box').html(
+        		"<div class=\"upload-pre-file\"><span class=\"upload_icon_all\"></span>" + data.info + "</div>"
+        	);
+        } else {
+        	updateAlert(data.info);
+        	setTimeout(function(){
+                $('#top-alert').find('button').click();
+                $(that).removeClass('disabled').prop('disabled',false);
+            },1500);
+        }
+    }
+
+  	//上传图片
+    /* 初始化上传插件 */
+	$("#upload_picture").uploadify({
+        "height"          : 30,
+        "swf"             : "__STATIC__/uploadify/uploadify.swf",
+        "fileObjName"     : "download",
+        "buttonText"      : "上传图片",
+        "uploader"        : "{:U('File/uploadPicture',array('session_id'=>session_id()))}",
+        "width"           : 120,
+        'removeTimeout'	  : 1,
+        'fileTypeExts'	  : '*.jpg; *.png; *.gif;',
+        "onUploadSuccess" : uploadPicture
+    });
+	function uploadPicture(file, data){
+    	var data = $.parseJSON(data);
+        if(data.status){
+        	$("#cover_id").val(data.id);
+        	$("#cover_id").parent().find('.upload-img-box').html(
+        		'<div class="upload-pre-item"><img src="__ROOT__' + data.path + '"/></div>'
+        	);
+        } else {
+        	updateAlert(data.info);
+        	setTimeout(function(){
+                $('#top-alert').find('button').click();
+                $(that).removeClass('disabled').prop('disabled',false);
+            },1500);
+        }
+    }
+})(jQuery);
+$(function(){
+    $('#dateline').datetimepicker({
+        format: 'yyyy-mm-dd hh:ii',
+	    language:"zh-CN",
+	    minView:2,
+	    autoclose:true
+    });
+    $('#create_time').datetimepicker({
+        format: 'yyyy-mm-dd hh:ii',
+	    language:"zh-CN",
+	    minView:2,
+	    autoclose:true
+    });
+    showTab();
+
+	<if condition="C('OPEN_DRAFTBOX') and (ACTION_NAME eq 'add' or $info['status'] eq 3)">
+	//保存草稿
+	var interval;
+	$('#autoSave').click(function(){
+        var target_form = $(this).attr('target-form');
+        var target = $(this).attr('url')
+        var form = $('.'+target_form);
+        var query = form.serialize();
+        var that = this;
+
+        $(that).addClass('disabled').attr('autocomplete','off').prop('disabled',true);
+        $.post(target,query).success(function(data){
+            if (data.status==1) {
+                updateAlert(data.info ,'alert-success');
+                $('input[name=id]').val(data.data.id);
+            }else{
+                updateAlert(data.info);
+            }
+            setTimeout(function(){
+                $('#top-alert').find('button').click();
+                $(that).removeClass('disabled').prop('disabled',false);
+            },1500);
+        })
+
+        //重新开始定时器
+        clearInterval(interval);
+        autoSaveDraft();
+        return false;
+    });
+
+	//Ctrl+S保存草稿
+	$('body').keydown(function(e){
+		if(e.ctrlKey && e.which == 83){
+			$('#autoSave').click();
+			return false;
+		}
+	});
+
+	//每隔一段时间保存草稿
+	function autoSaveDraft(){
+		interval = setInterval(function(){
+			//只有基础信息填写了，才会触发
+			var title = $('input[name=title]').val();
+			var name = $('input[name=name]').val();
+			var des = $('textarea[name=description]').val();
+			if(title != '' || name != '' || des != ''){
+				$('#autoSave').click();
+			}
+		}, 1000*parseInt({:C('AOTUSAVE_DRAFT')}));
+	}
+	autoSaveDraft();
+
+	</if>
+
+
+	(function(){
+		//将扩展里的内容移动到基础和高级里
+		var html = $('#move-base');
+		$('#tab1').append(html);
+		html = $('#move-advance');
+		$('#tab2').append(html);
+
+		//表单元素的排序
+		var list = $('.form-item[sort]');
+		var base = [],extend = [];
+		list.each(function(i){
+			var sort = $(this).attr('sort');
+			if(sort > 0){		//基础
+				base[sort] = list[i];
+			}else if(sort < 0){	//高级
+				sort = sort * -1;
+				extend[sort] = list[i];
+			}else if(sort == 0){	//隐藏
+
+			}else{				//未指定排序
+
+			}
+		});
+
+		if(base != ''){
+			for (i in base){
+				if(base[i] != ''){
+					$('#tab1').append(base[i]);
+				}
+			}
+			for (i in extend){
+				if(extend[i] != ''){
+					$('#tab2').append(extend[i]);
+				}
+			}
+		}
+	})();
+
+});
+</script>
+</block>
