@@ -38,7 +38,7 @@ class CategoryController extends AdminController {
      * @author 麦当苗儿 <zuojiazi@vip.qq.com>
      */
     public function index(){
-        $tree = D('Category')->getTree(0,'id,name,title,sort,pid');
+        $tree = D('Category')->getTree(0,'id,name,title,sort,pid,allow_publish');
         $this->assign('tree', $tree);
         C('_SYS_GET_CATEGORY_TREE_', true); //标记系统获取分类树模板
         $this->meta_title = '分类管理';
@@ -144,5 +144,90 @@ class CategoryController extends AdminController {
         }else{
             $this->error('删除分类失败！');
         }
+    }
+
+    /**
+     * 操作分类初始化
+     * @param string $type
+     * @author huajie <banhuajie@163.com>
+     */
+    public function operate($type = 'move'){
+    	//检查操作参数
+    	if(strcmp($type, 'move') == 0){
+    		$operate = '移动';
+    	}elseif(strcmp($type, 'merge') == 0){
+    		$operate = '合并';
+    	}else{
+    		$this->error('参数错误！');
+    	}
+    	$from = intval(I('get.from'));
+    	empty($from) && $this->error('参数错误！');
+
+    	//获取分类
+    	$map = array('status'=>1, 'id'=>array('neq', $from));
+		$list = M('Category')->where($map)->field('id,title')->select();
+
+    	$this->assign('type'	, $type);
+    	$this->assign('operate'	, $operate);
+    	$this->assign('from'	, $from);
+    	$this->assign('list'	, $list);
+    	$this->meta_title = $operate.'分类';
+    	$this->display();
+    }
+
+    /**
+     * 移动分类
+     * @author huajie <banhuajie@163.com>
+     */
+    public function move(){
+    	$to = I('post.to');
+    	$from = I('post.from');
+    	$res = M('Category')->where(array('id'=>$from))->setField('pid', $to);
+    	if($res !== false){
+    		$this->success('分类移动成功！', U('index'));
+    	}else{
+    		$this->error('分类移动失败！');
+    	}
+    }
+
+    /**
+     * 合并分类
+     * @author huajie <banhuajie@163.com>
+     */
+    public function merge(){
+		$to = I('post.to');
+    	$from = I('post.from');
+    	$Model = M('Category');
+
+    	//检查分类绑定的模型
+    	$from_models = explode(',', $Model->getFieldById($from, 'model'));
+    	$to_models = explode(',', $Model->getFieldById($to, 'model'));
+    	foreach ($from_models as $value){
+    		if(!in_array($value, $to_models)){
+    			$this->error('请给目标分类绑定' . get_document_model($value, 'title') . '模型');
+    		}
+    	}
+
+    	//检查分类选择的文档类型
+    	$from_types = explode(',', $Model->getFieldById($from, 'type'));
+    	$to_types = explode(',', $Model->getFieldById($to, 'type'));
+    	foreach ($from_types as $value){
+    		if(!in_array($value, $to_types)){
+    			$types = C('DOCUMENT_MODEL_TYPE');
+    			$this->error('请给目标分类绑定文档类型：' . $types[$value]);
+    		}
+    	}
+
+    	//合并文档
+    	$res = M('Document')->where(array('category_id'=>$from))->setField('category_id', $to);
+
+    	if($res){
+    		//删除被合并的分类
+    		$Model->delete($from);
+    		$this->success('合并分类成功！', U('index'));
+    	}else{
+    		$this->error('合并分类失败！');
+    	}
+
     }
 }

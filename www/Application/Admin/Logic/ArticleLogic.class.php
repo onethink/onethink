@@ -30,7 +30,7 @@ class ArticleLogic extends BaseLogic{
 	public function update($id = 0){
 		/* 获取文章数据 */
 		$data = $this->create();
-		if(!$data){
+		if($data === false){
 			return false;
 		}
 
@@ -54,7 +54,7 @@ class ArticleLogic extends BaseLogic{
 	}
 
 	/**
-	 * 检查详细内容是否需要填写
+	 * 获取文章的详细内容
 	 * @return boolean
 	 * @author huajie <banhuajie@163.com>
 	 */
@@ -65,7 +65,7 @@ class ArticleLogic extends BaseLogic{
 			if(empty($content)){
 				return false;
 			}
-		}else{			//专辑和目录没内容则生成空字符串
+		}else{			//目录没内容则生成空字符串
 			if(empty($content)){
 				$_POST['content'] = ' ';
 			}

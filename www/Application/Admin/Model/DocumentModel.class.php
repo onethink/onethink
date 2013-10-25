@@ -19,10 +19,10 @@ class DocumentModel extends Model{
     /* 自动验证规则 */
     protected $_validate = array(
         array('name', '/^[a-zA-Z]\w{0,39}$/', '文档标识不合法', self::VALUE_VALIDATE, 'regex', self::MODEL_BOTH),
-        array('name', '', '标识已经存在', self::VALUE_VALIDATE, 'unique', self::MODEL_BOTH),
+        array('name', 'checkName', '标识已经存在', self::VALUE_VALIDATE, 'callback', self::MODEL_BOTH),
         array('title', 'require', '标题不能为空', self::MUST_VALIDATE, 'regex', self::MODEL_BOTH),
         array('title', '1,80', '标题长度不能超过80个字符', self::MUST_VALIDATE, 'length', self::MODEL_BOTH),
-        array('level', '/^[\d]+$/', '优先级只能填正整数', self::VALUE_VALIDATE, 'regex', self::MODEL_BOTH),
+    	array('level', '/^[\d]+$/', '优先级只能填正整数', self::VALUE_VALIDATE, 'regex', self::MODEL_BOTH),
         array('link_id', 'url', '外链格式不正确', self::VALUE_VALIDATE, 'regex', self::MODEL_BOTH),
         array('description', '1,140', '简介长度不能超过140个字符', self::VALUE_VALIDATE, 'length', self::MODEL_BOTH),
         array('category_id', 'require', '分类不能为空', self::MUST_VALIDATE , 'regex', self::MODEL_INSERT),
@@ -38,6 +38,7 @@ class DocumentModel extends Model{
         array('uid', 'is_login', self::MODEL_INSERT, 'function'),
         array('title', 'htmlspecialchars', self::MODEL_BOTH, 'function'),
         array('description', 'htmlspecialchars', self::MODEL_BOTH, 'function'),
+    	array('root', 'getRoot', self::MODEL_BOTH, 'callback'),
         array('link_id', 'getLink', self::MODEL_BOTH, 'callback'),
         array('attach', 0, self::MODEL_INSERT),
         array('view', 0, self::MODEL_INSERT),
@@ -45,7 +46,7 @@ class DocumentModel extends Model{
         array('extend', 0, self::MODEL_INSERT),
         array('create_time', 'getCreateTime', self::MODEL_BOTH,'callback'),
         array('update_time', NOW_TIME, self::MODEL_BOTH),
-        array('status', '1', self::MODEL_INSERT, 'string'),
+        array('status', 'getStatus', self::MODEL_BOTH, 'callback'),
         array('position', 'getPosition', self::MODEL_BOTH, 'callback'),
         array('dateline', 'strtotime', self::MODEL_BOTH, 'function'),
     );
@@ -137,19 +138,20 @@ class DocumentModel extends Model{
 
     /**
      * 新增或更新一个文档
+     * @param array  $data 手动传入的数据
      * @return boolean fasle 失败 ， int  成功 返回完整的数据
      * @author huajie <banhuajie@163.com>
      */
-    public function update(){
-        /* 检查文档类型是否符合要求 */
-        $res = $this->checkDocumentType( I('type'), I('pid') );
-        if(!$res['status']){
-            $this->error = $res['info'];
-            return false;
-        }
+    public function update($data = null){
+    	/* 检查文档类型是否符合要求 */
+    	$res = $this->checkDocumentType( I('type'), I('pid') );
+    	if(!$res['status']){
+    		$this->error = $res['info'];
+    		return false;
+    	}
 
         /* 获取数据对象 */
-        $data = $this->create();
+        $data = $this->create($data);
         if(empty($data)){
             return false;
         }
@@ -256,14 +258,32 @@ class DocumentModel extends Model{
      * @return integer 数据状态
      */
     protected function getStatus(){
+    	$id = I('post.id');
         $cate = I('post.category_id');
-        $check = M('Category')->getFieldById($cate, 'check');
-        if($check){
-            $status = 2;
-        }else{
-            $status = 1;
+        if(empty($id)){	//新增
+        	$status = 1;
+        }else{				//更新
+			$status = $this->getFieldById($id, 'status');
+			//编辑草稿改变状态
+			if($status == 3){
+				$status = 1;
+			}
         }
         return $status;
+    }
+
+    /**
+     * 获取根节点id
+     * @return integer 数据id
+     * @author huajie <banhuajie@163.com>
+     */
+    protected function getRoot(){
+    	$pid = I('post.pid');
+    	if($pid == 0){
+    		return 0;
+    	}
+    	$p_root = $this->getFieldById($pid, 'root');
+    	return $p_root == 0 ? $pid : $p_root;
     }
 
     /**
@@ -334,17 +354,30 @@ class DocumentModel extends Model{
     }
 
     /**
-     * 检查标识是否已存在
+     * 检查标识是否已存在(只需在同一根节点下不重复)
      * @param string $name
      * @return true无重复，false已存在
      * @author huajie <banhuajie@163.com>
      */
     protected function checkName(){
         $name = I('post.name');
-        if(empty($name)){
-            $name = $this->generateName();
+        $pid = I('post.pid', 0);
+        $id = I('post.id', 0);
+
+        //获取根节点
+        if($pid == 0){
+        	$root = 0;
+        }else{
+        	$root = $this->getFieldById($pid, 'root');
+        	$root = $root == 0 ? $pid : $root;
         }
-        return $name;
+
+        $map = array('root'=>$root, 'name'=>$name, 'id'=>array('neq',$id));
+        $res = $this->where($map)->getField('id');
+        if($res){
+        	return false;
+        }
+        return true;
     }
 
     /**
@@ -352,13 +385,13 @@ class DocumentModel extends Model{
      * @author huajie <banhuajie@163.com>
      */
     private function generateName(){
-        $str = 'abcdefghijklmnopqrstuvwxyz0123456789';  //源字符串
+        $str = 'abcdefghijklmnopqrstuvwxyz0123456789';	//源字符串
         $min = 10;
         $max = 39;
         $name = false;
         while (true){
-            $length = rand($min, $max); //生成的标识长度
-            $name = substr(str_shuffle(substr($str,0,26)), 0, 1);   //第一个字母
+            $length = rand($min, $max);	//生成的标识长度
+            $name = substr(str_shuffle(substr($str,0,26)), 0, 1);	//第一个字母
             $name .= substr(str_shuffle($str), 0, $length);
             //检查是否已存在
             $res = $this->getFieldByName($name, 'id');
@@ -381,7 +414,7 @@ class DocumentModel extends Model{
         }else{
             $pos = 0;
             foreach ($position as $key=>$value){
-                $pos ^= $value;     //将各个推荐位的值按位与
+                $pos += $value;		//将各个推荐位的值相加
             }
             return $pos;
         }
@@ -415,7 +448,9 @@ class DocumentModel extends Model{
 
         //删除基础数据
         $ids = array_merge( $base_ids, (array)array_column($orphan,'id') );
-        $res = $this->where( array( 'id'=>array( 'IN',trim(implode(',',$ids),',') ) ) )->delete();
+        if(!empty($ids)){
+        	$res = $this->where( array( 'id'=>array( 'IN',trim(implode(',',$ids),',') ) ) )->delete();
+        }
 
         return $res;
     }
@@ -445,8 +480,8 @@ class DocumentModel extends Model{
         /* 检查文档类型是否符合要求 */
         $res = $this->checkDocumentType( I('type'), I('pid') );
         if(!$res['status']){
-            $this->error = $res['info'];
-            return false;
+        	$this->error = $res['info'];
+        	return false;
         }
 
         //触发自动保存的字段
@@ -486,14 +521,14 @@ class DocumentModel extends Model{
         if(empty($data['id'])){ //新增数据
             $id = $this->add(); //添加基础内容
             if(!$id){
-                $this->error = '新增基础内容出错！';
+    			$this->error = '新增基础内容出错！';
                 return false;
             }
             $data['id'] = $id;
         } else { //更新数据
             $status = $this->save(); //更新基础内容
             if(false === $status){
-                $this->error = '更新基础内容出错！';
+    			$this->error = '更新基础内容出错！';
                 return false;
             }
         }
@@ -519,15 +554,15 @@ class DocumentModel extends Model{
      * @author huajie <banhuajie@163.com>
      */
     public function getDirectoryList($pid = null){
-        if(empty($pid)){
-            return false;
-        }
-        $tree = S('sys_directory_tree');
-        if(empty($tree)){
-            $res = $this->getChild($pid);
-            S('sys_directory_tree', $tree);
-        }
-        return $res;
+    	if(empty($pid)){
+    		return false;
+    	}
+    	$tree = S('sys_directory_tree');
+		if(empty($tree)){
+			$res = $this->getChild($pid);
+			S('sys_directory_tree', $tree);
+		}
+		return $res;
     }
 
     /**
@@ -537,21 +572,21 @@ class DocumentModel extends Model{
      * @author huajie <banhuajie@163.com>
      */
     private function getChild($pid){
-        $tree = array();
-        $map = array('status'=>1,'type'=>1);
-        if(is_array($pid)){
-            $map['pid'] = array('in', implode(',', $pid));
-        }else{
-            $map['pid'] = $pid;
-        }
-        $child = $this->where($map)->field('id,name,title,pid')->select();
-        if(!empty($child)){
-            foreach ($child as $key=>$value){
-                $pids[] = $value['id'];
-            }
-            $tree = array_merge($child, $this->getChild($pids));
-        }
-        return $tree;
+    	$tree = array();
+    	$map = array('status'=>1,'type'=>1);
+    	if(is_array($pid)){
+    		$map['pid'] = array('in', implode(',', $pid));
+    	}else{
+    		$map['pid'] = $pid;
+    	}
+    	$child = $this->where($map)->field('id,name,title,pid')->order('level DESC,id DESC')->select();
+    	if(!empty($child)){
+    		foreach ($child as $key=>$value){
+    			$pids[] = $value['id'];
+    		}
+    		$tree = array_merge($child, $this->getChild($pids));
+    	}
+    	return $tree;
     }
 
     /**
@@ -562,36 +597,36 @@ class DocumentModel extends Model{
      * @author huajie <banhuajie@163.com>
      */
     public function checkDocumentType($type = null, $pid = null){
-        $res = array('status'=>1, 'info'=>'');
-        if(empty($type)){
-            return array('status'=>0, 'info'=>'文档类型不能为空');
-        }
-        if(empty($pid)){
-            return $res;
-        }
-        //查询父文档的类型
-        if(is_numeric($pid)){
-            $ptype = $this->getFieldById($pid, 'type');
-        }else{
-            $ptype = $this->getFieldByName($pid, 'type');
-        }
-        //父文档为目录时
-        if($ptype == 1){
-            return $res;
-        }
-        //父文档为主题时
-        if($ptype == 2){
-            if($type != 3){
-                return array('status'=>0, 'info'=>'主题下面只允许添加段落');
-            }else{
-                return $res;
-            }
-        }
-        //父文档为段落时
-        if($ptype == 3){
-            return array('status'=>0, 'info'=>'段落下面不允许再添加子内容');
-        }
-        return array('status'=>0, 'info'=>'父文档类型不正确');
+    	$res = array('status'=>1, 'info'=>'');
+		if(empty($type)){
+			return array('status'=>0, 'info'=>'文档类型不能为空');
+		}
+		if(empty($pid)){
+			return $res;
+		}
+		//查询父文档的类型
+		if(is_numeric($pid)){
+			$ptype = $this->getFieldById($pid, 'type');
+		}else{
+			$ptype = $this->getFieldByName($pid, 'type');
+		}
+		//父文档为目录时
+		if($ptype == 1){
+			return $res;
+		}
+		//父文档为主题时
+		if($ptype == 2){
+			if($type != 3){
+				return array('status'=>0, 'info'=>'主题下面只允许添加段落');
+			}else{
+				return $res;
+			}
+		}
+		//父文档为段落时
+		if($ptype == 3){
+			return array('status'=>0, 'info'=>'段落下面不允许再添加子内容');
+		}
+		return array('status'=>0, 'info'=>'父文档类型不正确');
     }
 
 }
