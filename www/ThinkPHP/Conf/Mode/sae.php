@@ -2,7 +2,7 @@
 // +----------------------------------------------------------------------
 // | ThinkPHP [ WE CAN DO IT JUST THINK IT ]
 // +----------------------------------------------------------------------
-// | Copyright (c) 2006-2012 http://thinkphp.cn All rights reserved.
+// | Copyright (c) 2006-2013 http://thinkphp.cn All rights reserved.
 // +----------------------------------------------------------------------
 // | Licensed ( http://www.apache.org/licenses/LICENSE-2.0 )
 // +----------------------------------------------------------------------
@@ -10,7 +10,7 @@
 // +----------------------------------------------------------------------
       
 /**
- * ThinkPHP 普通模式定义
+ * ThinkPHP SAE模式定义
  */
 return array(
 	// 配置文件
@@ -81,7 +81,5 @@ return array(
 	    ),
 	    'view_end'      =>  array(),
 	),
-	'tags'	=>	array(
-		COMMON_PATH.'Conf/tags.php',
-	),
+	'tags'	=>	COMMON_PATH.'Conf/tags.php',
 );

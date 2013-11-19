@@ -8,8 +8,8 @@
 // +----------------------------------------------------------------------
 
 // OneThink常量定义
-const ONETHINK_VERSION      =   '1.0.131018';
-const ONETHINK_ADDON_PATH   =   './Addons/';
+const ONETHINK_VERSION    = '1.0.131115';
+const ONETHINK_ADDON_PATH = './Addons/';
 
 /**
  * 系统公共库文件
@@ -214,6 +214,31 @@ function list_to_tree($list, $pk='id', $pid = 'pid', $child = '_child', $root = 
 }
 
 /**
+ * 将list_to_tree的树还原成列表
+ * @param  array $tree  原来的树
+ * @param  string $child 孩子节点的键
+ * @param  string $order 排序显示的键，一般是主键 升序排列
+ * @param  array  $list  过渡用的中间数组，
+ * @return array        返回排过序的列表数组
+ * @author yangweijie <yangweijiester@gmail.com>
+ */
+function tree_to_list($tree, $child = '_child', $order='id', &$list = array()){
+    if(is_array($tree)) {
+        $refer = array();
+        foreach ($tree as $key => $value) {
+            $reffer = $value;
+            if(isset($reffer[$child])){
+                unset($reffer[$child]);
+                tree_to_list($value[$child], $child, $order, $list);
+            }
+            $list[] = $reffer;
+        }
+        $list = list_sort_by($list, $order, $sortby='asc');
+    }
+    return $list;
+}
+
+/**
  * 格式化字节大小
  * @param  number $size      字节数
  * @param  string $delimiter 数字和单位分隔符
@@ -243,31 +268,6 @@ function set_redirect_url($url){
 function get_redirect_url(){
     $url = cookie('redirect_url');
     return empty($url) ? __APP__ : $url;
-}
-
-/**
- * 初始化钩子信息
- * @return void
- */
-function init_hooks(){
-    $data = S('hooks');
-    if(!$data){
-        $hooks = M('Hooks')->getField('name,addons');
-        foreach ($hooks as $key => $value) {
-            if($value){
-                $map['status']  =   1;
-                $map['name']    =   array('IN',explode(',',$value));
-                $data = M('Addons')->where($map)->getField('id,name');
-                if($data){
-                    $addons =   array_values($data);
-                    \Think\Hook::add($key,$addons);
-                }
-            }
-        }
-        S('hooks',\Think\Hook::get());
-    }else{
-        \Think\Hook::import($data);
-    }
 }
 
 /**
@@ -337,9 +337,9 @@ function addons_url($url, $param = array()){
  * @return string 完整的时间显示
  * @author huajie <banhuajie@163.com>
  */
-function time_format($time = NULL){
-    $time = $time === NULL || $time > NOW_TIME ? NOW_TIME : intval($time);
-    return date('Y-m-d H:i:s', $time);
+function time_format($time = NULL,$format='Y-m-d H:i'){
+    $time = $time === NULL ? NOW_TIME : intval($time);
+    return date($format, $time);
 }
 
 /**
@@ -481,8 +481,8 @@ function get_document_model($id = null, $field = null){
 
     /* 获取模型名称 */
     if(empty($list)){
-        $map   = array('status' => 1);
-        $model = M('DocumentModel')->where($map)->field('id,name,title,fields')->select();
+        $map   = array('status' => 1, 'extend' => 1);
+        $model = M('Model')->where($map)->field(true)->select();
         foreach ($model as $value) {
             $list[$value['id']] = $value;
         }
@@ -513,7 +513,7 @@ function ubb($data){
 /**
  * 记录行为日志，并执行该行为的规则
  * @param string $action 行为标识
- * @param string $model 触发行为的表名（不加表前缀）
+ * @param string $model 触发行为的模型名
  * @param int $record_id 触发行为的记录id
  * @param int $user_id 执行行为的用户id
  * @return boolean
@@ -532,7 +532,7 @@ function action_log($action = null, $model = null, $record_id = null, $user_id =
     //查询行为,判断是否执行
     $action_info = M('Action')->getByName($action);
     if($action_info['status'] != 1){
-        return '该行为被禁用';
+        return '该行为被禁用或删除';
     }
 
     //插入行为日志
@@ -542,13 +542,17 @@ function action_log($action = null, $model = null, $record_id = null, $user_id =
     $data['model'] = $model;
     $data['record_id'] = $record_id;
     $data['create_time'] = NOW_TIME;
+    //系统日志记录操作url参数
+    $data['remark'] = '操作url：'.$_SERVER['REQUEST_URI'];
     M('ActionLog')->add($data);
 
-    //解析行为
-    $rules = parse_action($action, $user_id);
+    if(!empty($action_info['rule'])){
+    	//解析行为
+    	$rules = parse_action($action, $user_id);
 
-    //执行行为
-    $res = execute_action($rules, $action_info['id'], $user_id);
+    	//执行行为
+    	$res = execute_action($rules, $action_info['id'], $user_id);
+    }
 }
 
 /**
@@ -678,4 +682,132 @@ if(!function_exists('array_column')){
         }
         return $result;
     }
+}
+
+/**
+ * 获取表名（不含表前缀）
+ * @param string $model_id
+ * @return string 表名
+ * @author huajie <banhuajie@163.com>
+ */
+function get_table_name($model_id = null){
+	if(empty($model_id)){
+		return false;
+	}
+	$Model = M('Model');
+	$name = '';
+	$info = $Model->getById($model_id);
+	if($info['extend'] != 0){
+		$name = $Model->getFieldById($info['extend'], 'name').'_';
+	}
+	$name .= $info['name'];
+	return $name;
+}
+
+/**
+ * 获取属性信息并缓存
+ * @param  integer $id    属性ID
+ * @param  string  $field 要获取的字段名
+ * @return string         属性信息
+ */
+function get_model_attribute($model_id, $group = true){
+	static $list;
+
+	/* 非法ID */
+	if(empty($model_id) || !is_numeric($model_id)){
+		return '';
+	}
+
+	/* 读取缓存数据 */
+	if(empty($list)){
+		$list = S('attribute_list');
+	}
+
+	/* 获取属性 */
+	if(!isset($list[$model_id])){
+        $map = array('model_id'=>$model_id);
+        $extend = M('Model')->getFieldById($model_id,'extend');
+
+        if($extend){
+            $map = array('model_id'=> array("in", array($model_id, $extend)));
+        }
+		$info = M('Attribute')->where($map)->select();
+		$list[$model_id] = $info;
+		//S('attribute_list', $list); //更新缓存
+	}
+
+    $attr = array();
+    foreach ($list[$model_id] as $value) {
+        $attr[$value['id']] = $value;
+    }
+
+    if($group){
+        $sort  = M('Model')->getFieldById($model_id,'field_sort');
+
+        if(empty($sort)){	//未排序
+        	$group = array(1=>array_merge($attr));
+        }else{
+        	$group = json_decode($sort, true);
+
+        	$keys  = array_keys($group);
+        	foreach ($group as &$value) {
+        		foreach ($value as $key => $val) {
+        			$value[$key] = $attr[$val];
+        			unset($attr[$val]);
+        		}
+        	}
+
+        	if(!empty($attr)){
+        		$group[$keys[0]] = array_merge($group[$keys[0]], $attr);
+        	}
+        }
+
+
+        $attr = $group;
+    }
+
+	return $attr;
+}
+
+/**
+ * 调用系统的API接口方法（静态方法）
+ * api('User/getName','id=5'); 调用公共模块的User接口的getName方法
+ * api('Admin/User/getName','id=5');  调用Admin模块的User接口
+ * @param  string  $name 格式 [模块名]/接口名/方法名
+ * @param  array|string  $vars 参数
+ */
+function api($name,$vars=array()){
+    $array     = explode('/',$name);
+    $method    = array_pop($array);
+    $classname = array_pop($array);
+    $module    = $array? array_pop($array) : 'Common';
+    $callback  = $module.'\\Api\\'.$classname.'Api::'.$method;
+    if(is_string($vars)) {
+        parse_str($vars,$vars);
+    }
+    return call_user_func_array($callback,$vars);
+}
+
+/**
+ * 根据条件字段获取指定表的数据
+ * @param mixed $value 条件，可用常量或者数组
+ * @param string $condition 条件字段
+ * @param string $field 需要返回的字段，不传则返回整个数据
+ * @param string $table 需要查询的表
+ * @author huajie <banhuajie@163.com>
+ */
+function get_table_field($value = null, $condition = 'id', $field = null, $table = null){
+	if(empty($value) || empty($table)){
+		return false;
+	}
+
+	//拼接参数
+	$map[$condition] = $value;
+	$info = M(ucfirst($table))->where($map);
+	if(empty($field)){
+		$info = $info->field(true)->find();
+	}else{
+		$info = $info->getField($field);
+	}
+	return $info;
 }

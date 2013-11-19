@@ -24,28 +24,6 @@ class AuthManagerController extends AdminController{
     /* 保存允许所有管理员访问的公共方法 */
     static protected $allow =   array();
 
-    static protected $nodes =   array(
-        //权限管理页
-        array('title'=>'权限管理','url'=>'AuthManager/index','group'=>'用户管理',
-              'operator'=>array(
-                  //权限管理页面的五种按钮
-                  array('title'=>'删除',        'url'=>'AuthManager/changeStatus?method=deleteGroup','tip'=>'删除用户组'),
-                  array('title'=>'禁用',        'url'=>'AuthManager/changeStatus?method=forbidGroup','tip'=>'禁用用户组'),
-                  array('title'=>'恢复',        'url'=>'AuthManager/changeStatus?method=resumeGroup','tip'=>'恢复已禁用的用户组'),
-                  array('title'=>'新增',        'url'=>'AuthManager/createGroup',                    'tip'=>'创建新的用户组'),
-                  array('title'=>'编辑',        'url'=>'AuthManager/editGroup',                      'tip'=>'编辑用户组名称和描述'),
-                  array('title'=>'保存用户组',  'url'=>'AuthManager/writeGroup',                     'tip'=>'新增和编辑用户组的"保存"按钮'),
-                  array('title'=>'授权',        'url'=>'AuthManager/group',                          'tip'=>'"后台 \ 用户 \ 用户信息"列表页的"授权"操作按钮,用于设置用户所属用户组'),
-                  array('title'=>'访问授权',    'url'=>'AuthManager/access',                         'tip'=>'"后台 \ 用户 \ 权限管理"列表页的"访问授权"操作按钮'),
-                  array('title'=>'成员授权',    'url'=>'AuthManager/user',                           'tip'=>'"后台 \ 用户 \ 权限管理"列表页的"成员授权"操作按钮'),
-                  array('title'=>'解除授权',    'url'=>'AuthManager/removeFromGroup',                'tip'=>'"成员授权"列表页内的解除授权操作按钮'),
-                  array('title'=>'保存成员授权','url'=>'AuthManager/addToGroup',                     'tip'=>'"用户信息"列表页"授权"时的"保存"按钮和"成员授权"里右上角的"添加"按钮)'),
-                  array('title'=>'分类授权',    'url'=>'AuthManager/category',                       'tip'=>'"后台 \ 用户 \ 权限管理"列表页的"分类授权"操作按钮'),
-                  array('title'=>'保存分类授权','url'=>'AuthManager/addToCategory',                  'tip'=>'"分类授权"页面的"保存"按钮'),
-              ),
-        ),
-    );
-
     /**
      * 后台节点配置的url作为规则存入auth_rule
      * 执行新节点的插入,已有节点的更新,无效规则的删除三项任务
@@ -66,10 +44,10 @@ class AuthManagerController extends AdminController{
             $temp['name']   = $value['url'];
             $temp['title']  = $value['title'];
             $temp['module'] = 'admin';
-            if(isset($value['controllers'])){
-                $temp['type'] = AuthRuleModel::RULE_MAIN;
-            }else{
+            if($value['pid'] >0){
                 $temp['type'] = AuthRuleModel::RULE_URL;
+            }else{
+                $temp['type'] = AuthRuleModel::RULE_MAIN;
             }
             $temp['status']   = 1;
             $data[strtolower($temp['name'].$temp['module'].$temp['type'])] = $temp;//去除重复项
@@ -270,6 +248,23 @@ class AuthManagerController extends AdminController{
         $this->display();
     }
 
+    /**
+     * 将模型添加到用户组的编辑页面
+     * @author 朱亚杰 <xcoolcc@gmail.com>
+     */
+    public function modelAuth(){
+        $auth_group     =   M('AuthGroup')->where( array('status'=>array('egt','0'),'module'=>'admin','type'=>AuthGroupModel::TYPE_ADMIN) )
+            ->getfield('id,id,title,rules');
+        $model_list     = M('Model')->where(array('status'=>array('gt',0)))->select();
+        $authed_model   =   AuthGroupModel::getModelOfGroup(I('group_id'));
+        $this->assign('authed_model',   implode(',',(array)$authed_model));
+        $this->assign('model_list',     $model_list);
+        $this->assign('auth_group',     $auth_group);
+        $this->assign('this_group',     $auth_group[(int)$_GET['group_id']]);
+        $this->meta_title = '模型授权';
+        $this->display();
+    }
+
     public function tree($tree = null){
         $this->assign('tree', $tree);
         $this->display('tree');
@@ -366,6 +361,30 @@ class AuthManagerController extends AdminController{
             $this->error($AuthGroup->error);
         }
         if ( $AuthGroup->addToCategory($gid,$cid) ){
+            $this->success('操作成功');
+        }else{
+            $this->error('操作失败');
+        }
+    }
+
+    /**
+     * 将模型添加到用户组  入参:mid,group_id
+     * @author 朱亚杰 <xcoolcc@gmail.com>
+     */
+    public function addToModel(){
+        $mid = I('id');
+        $gid = I('get.group_id');
+        if( empty($gid) ){
+            $this->error('参数有误');
+        }
+        $AuthGroup = D('AuthGroup');
+        if( !$AuthGroup->find($gid)){
+            $this->error('用户组不存在');
+        }
+        if( $mid && !$AuthGroup->checkModelId($mid)){
+            $this->error($AuthGroup->error);
+        }
+        if ( $AuthGroup->addToModel($gid,$mid) ){
             $this->success('操作成功');
         }else{
             $this->error('操作失败');

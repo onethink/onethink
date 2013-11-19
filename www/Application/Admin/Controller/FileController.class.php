@@ -14,18 +14,6 @@ namespace Admin\Controller;
 
 class FileController extends AdminController {
 
-    /* 左侧节点菜单定义,用户生成权限 */
-    static protected $nodes = array(
-            array(
-                'title'=>'上传控件', 'url'=>'file/upload', 'group'=>'上传','hide'=>true,
-                'operator'=>array(
-                        array('title'=>'上传','url'=>'file/upload'),
-                        array('title'=>'上传图片','url'=>'file/uploadPicture'),
-                        array('title'=>'下载','url'=>'file/download'),
-                ),
-            ),
-    );
-
     /* 文件上传 */
     public function upload(){
         //TODO: 用户登录检测
@@ -75,7 +63,13 @@ class FileController extends AdminController {
 
         /* 调用文件上传组件上传文件 */
         $Picture = D('Picture');
-        $info = $Picture->upload($_FILES, C('PICTURE_UPLOAD')); //TODO:上传到远程服务器
+        $pic_driver = C('PICTURE_UPLOAD_DRIVER');
+        $info = $Picture->upload(
+            $_FILES,
+            C('PICTURE_UPLOAD'),
+            C('PICTURE_UPLOAD_DRIVER'),
+            C("UPLOAD_{$pic_driver}_CONFIG")
+        ); //TODO:上传到远程服务器
 
         /* 记录图片信息 */
         if($info){

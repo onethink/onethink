@@ -11,6 +11,74 @@
  * 后台公共文件
  * 主要定义后台公共函数库
  */
+function get_list_field($data, $grid,$model){
+
+	// 获取当前字段数据
+    foreach($grid['field'] as $field){
+        $array  =   explode('|',$field);
+        $temp  =	$data[$array[0]];
+        // 函数支持
+        if(isset($array[1])){
+            $temp = call_user_func($array[1], $temp);
+        }
+        $data2[$array[0]]    =   $temp;
+    }
+    if(!empty($grid['format'])){
+        $value  =   preg_replace_callback('/\[([a-z_]+)\]/', function($match) use($data2){return $data2[$match[1]];}, $grid['format']); 
+    }else{
+        $value  =   implode(' ',$data2);
+    }
+
+	// 链接支持
+	if(!empty($grid['href'])){
+		$links  =   explode(',',$grid['href']);
+        foreach($links as $link){
+            $array  =   explode('|',$link);
+            $href   =   $array[0];
+            if(preg_match('/^\[([a-z]+)\]$/',$href,$matches)){
+                $val[]  =   $data2[$matches[1]];
+            }else{
+                $show   =   isset($array[1])?$array[1]:$value;
+                // 替换系统特殊字符串
+                $href	=	str_replace(
+                    array('[DELETE]','[EDIT]','[MODEL]'),
+                    array('del?id=[id]&model=[MODEL]','edit?id=[id]&model=[MODEL]',$model['id'],),
+                    $href);
+
+                // 替换数据变量
+                $href	=	preg_replace_callback('/\[([a-z_]+)\]/', function($match) use($data){return $data[$match[1]];}, $href); 
+
+                $val[]	=	'<a href="'.U($href).'">'.$show.'</a>';
+            }
+        }
+        $value  =   implode(' ',$val);
+	}
+    return $value;
+}
+
+// 获取模型名称
+function get_model_by_id($id){
+    return $model = M('Model')->getFieldById($id,'title');
+}
+
+// 获取属性类型信息
+function get_attribute_type($type=''){
+    // TODO 可以加入系统配置
+    static $_type = array(
+        'num'       =>  array('数字','int(10) UNSIGNED NOT NULL'),
+        'string'    =>  array('字符串','varchar(255) NOT NULL'),
+        'textarea'  =>  array('文本框','text NOT NULL'),
+        'datetime'  =>  array('时间','datetime NOT NULL'),
+        'bool'      =>  array('布尔','tinyint(2) NOT NULL'),
+        'select'    =>  array('枚举','char(50) NOT NULL'),
+    	'radio'		=>	array('单选','char(10) NOT NULL'),
+    	'checkbox'	=>	array('多选','varchar(100) NOT NULL'),
+    	'editor'    =>  array('编辑器','text NOT NULL'),
+    	'picture'   =>  array('上传图片','int(10) UNSIGNED NOT NULL'),
+    	'file'    	=>  array('上传附件','int(10) UNSIGNED NOT NULL'),
+    );
+    return $type?$_type[$type][0]:$_type;
+}
 
 /**
  * 获取对应状态的文字信息
@@ -288,4 +356,79 @@ function get_stemma($pids,Model &$model, $field='id'){
         $child_ids  = array_column((array)$result,'id');
     }
     return $collection;
+}
+
+ // 分析枚举类型字段值 格式 a:名称1,b:名称2
+ // 暂时和 parse_config_attr功能相同
+ // 但请不要互相使用，后期会调整
+function parse_field_attr($string) {
+    $array = preg_split('/[,;\r\n]+/', trim($string, ",;\r\n"));
+    if(strpos($string,':')){
+        $value  =   array();
+        foreach ($array as $val) {
+            list($k, $v) = explode(':', $val);
+            $value[$k]   = $v;
+        }
+    }else{
+        $value  =   $array;
+    }
+    return $value;
+}
+
+/**
+ * 获取行为数据
+ * @param string $id 行为id
+ * @param string $field 需要获取的字段
+ * @author huajie <banhuajie@163.com>
+ */
+function get_action($id = null, $field = null){
+	if(empty($id) && !is_numeric($id)){
+		return false;
+	}
+	$list = S('action_list');
+	if(empty($list[$id])){
+		$map = array('status'=>array('gt', -1), 'id'=>$id);
+		$list[$id] = M('Action')->where($map)->field(true)->find();
+	}
+	return empty($field) ? $list[$id] : $list[$id][$field];
+}
+
+/**
+ * 根据条件字段获取数据
+ * @param mixed $value 条件，可用常量或者数组
+ * @param string $condition 条件字段
+ * @param string $field 需要返回的字段，不传则返回整个数据
+ * @author huajie <banhuajie@163.com>
+ */
+function get_document_field($value = null, $condition = 'id', $field = null){
+	if(empty($value)){
+		return false;
+	}
+
+	//拼接参数
+	$map[$condition] = $value;
+	$info = M('Model')->where($map);
+	if(empty($field)){
+		$info = $info->field(true)->find();
+	}else{
+		$info = $info->getField($field);
+	}
+	return $info;
+}
+
+/**
+ * 获取行为类型
+ * @param intger $type 类型
+ * @param bool $all 是否返回全部类型
+ * @author huajie <banhuajie@163.com>
+ */
+function get_action_type($type, $all = false){
+	$list = array(
+		1=>'系统',
+		2=>'用户',
+	);
+	if($all){
+		return $list;
+	}
+	return $list[$type];
 }

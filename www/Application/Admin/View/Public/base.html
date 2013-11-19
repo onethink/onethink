@@ -19,7 +19,8 @@
 </head>
 <body>
     <!-- 头部 -->
-    <php>$__base_menu__ = $__controller__->getMenus();</php>
+    <php>$__base_menu__ = $__controller__->getMenus();
+    </php>
     <div class="header">
         <!-- Logo -->
         <span class="logo"></span>
@@ -58,7 +59,7 @@
                 <volist name="__base_menu__.child" id="sub_menu">
                     <!-- 子导航 -->
                     <notempty name="sub_menu">
-                        <h3><i class="icon icon-unfold"></i>{$key}</h3>
+                        <notempty name="key"><h3><i class="icon icon-unfold"></i>{$key}</h3></notempty>
                         <ul class="side-sub-menu">
                             <volist name="sub_menu" id="menu">
                                 <li>
@@ -134,7 +135,9 @@
 
             /* 左边菜单高亮 */
             url = window.location.pathname + window.location.search;
-            $subnav.find("a[href='" + url + "']").parent().addClass("current");
+            url = url.replace(".html", "")
+                .replace(/(\/(p)\/\d+)|(&p=\d+)|(\/(id)\/\d+)|(&id=\d+)/, "");
+            $subnav.find("a[href^='" + url + "']").parent().addClass("current");
 
             /* 左边菜单显示收起 */
             $("#subnav").on("click", "h3", function(){

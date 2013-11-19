@@ -17,21 +17,6 @@ namespace Admin\Controller;
 class ChannelController extends AdminController {
 
     /**
-     * 左侧导航节点定义
-     * @author 麦当苗儿 <zuojiazi@vip.qq.com>
-     */
-    static protected $nodes = array(
-        /* 导航栏目设置 */
-        array( 'title' => '导航管理', 'url' => 'Channel/index', 'group' => '导航栏目设置',
-    			'operator'=>array(
-    				array('title'=>'新增','url'=>'Channel/add'),
-    				array('title'=>'编辑','url'=>'Channel/edit'),
-    				array('title'=>'删除','url'=>'Channel/del'),
-    			)
-    	),
-    );
-
-    /**
      * 频道列表
      * @author 麦当苗儿 <zuojiazi@vip.qq.com>
      */
@@ -56,9 +41,11 @@ class ChannelController extends AdminController {
             $Channel = D('Channel');
             $data = $Channel->create();
             if($data){
-
-                if($Channel->add()){
+				$id = $Channel->add();
+                if($id){
                     $this->success('新增成功', U('index'));
+                    //记录行为
+                    action_log('update_channel', 'channel', $id, UID);
                 } else {
                     $this->error('新增失败');
                 }
@@ -89,6 +76,8 @@ class ChannelController extends AdminController {
             $data = $Channel->create();
             if($data){
                 if($Channel->save()){
+                	//记录行为
+                	action_log('update_channel', 'channel', $data['id'], UID);
                     $this->success('编辑成功', U('index'));
                 } else {
                     $this->error('编辑失败');
@@ -133,6 +122,8 @@ class ChannelController extends AdminController {
 
         $map = array('id' => array('in', $id) );
         if(M('Channel')->where($map)->delete()){
+        	//记录行为
+        	action_log('update_channel', 'channel', $id, UID);
             $this->success('删除成功');
         } else {
             $this->error('删除失败！');

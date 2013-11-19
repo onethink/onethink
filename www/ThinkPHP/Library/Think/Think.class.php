@@ -11,11 +11,7 @@
 
 namespace Think;
 /**
- * ThinkPHP Portal类
- * @category   Think
- * @package  Think
- * @subpackage  Core
- * @author    liu21st <liu21st@gmail.com>
+ * ThinkPHP 引导类
  */
 class Think {
 
@@ -39,7 +35,7 @@ class Think {
       spl_autoload_register('Think\Think::autoload');
 
       // 初始化文件存储方式
-      Storage::connect(APP_MODE=='common'?'File':APP_MODE);
+      Storage::connect(STORAGE_TYPE);
 
       $runtimefile  = RUNTIME_PATH.APP_MODE.'~runtime.php';
       if(!APP_DEBUG && Storage::has($runtimefile,'runtime')){
@@ -106,7 +102,7 @@ class Think {
       date_default_timezone_set(C('DEFAULT_TIMEZONE'));
 
       // 检查项目目录结构 如果不存在则自动创建
-      if(C('CHECK_APP_DIR') && !is_dir(RUNTIME_PATH)) {
+      if(C('CHECK_APP_DIR') && !is_dir(LOG_PATH)) {
           // 创建项目目录结构
           require THINK_PATH.'Common/build.php';
       }

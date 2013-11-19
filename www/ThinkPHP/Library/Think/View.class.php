@@ -11,10 +11,6 @@
 namespace Think;
 /**
  * ThinkPHP 视图类
- * @category   Think
- * @package  Think
- * @subpackage  Core
- * @author liu21st <liu21st@gmail.com>
  */
 class View {
     /**
@@ -155,13 +151,13 @@ class View {
             list($module,$template)  =   explode('@',$template);
         }
         // 获取当前主题的模版路径
-		if(!defined('THEME_PATH')){
-			if(C('VIEW_PATH')){ // 视图目录
-				define('THEME_PATH',   C('VIEW_PATH').$module.'/'.$theme);
-			}else{ // 模块视图
-				define('THEME_PATH',   APP_PATH.$module.'/'.C('DEFAULT_V_LAYER').'/'.$theme);
-			}
-		}
+        if(!defined('THEME_PATH')){
+            if(C('VIEW_PATH')){ // 视图目录
+                define('THEME_PATH',   C('VIEW_PATH').$module.'/'.$theme);
+            }else{ // 模块视图
+                define('THEME_PATH',   APP_PATH.$module.'/'.C('DEFAULT_V_LAYER').'/'.$theme);
+            }
+        }
 
         // 分析模板文件规则
         if('' == $template) {

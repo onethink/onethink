@@ -23,7 +23,8 @@ class DocumentModel extends Model{
         array('title', 'require', '标题不能为空', self::MUST_VALIDATE, 'regex', self::MODEL_BOTH),
         array('title', '1,80', '标题长度不能超过80个字符', self::MUST_VALIDATE, 'length', self::MODEL_BOTH),
     	array('level', '/^[\d]+$/', '优先级只能填正整数', self::VALUE_VALIDATE, 'regex', self::MODEL_BOTH),
-        array('link_id', 'url', '外链格式不正确', self::VALUE_VALIDATE, 'regex', self::MODEL_BOTH),
+        //TODO: 外链编辑验证
+        //array('link_id', 'url', '外链格式不正确', self::VALUE_VALIDATE, 'regex', self::MODEL_BOTH),
         array('description', '1,140', '简介长度不能超过140个字符', self::VALUE_VALIDATE, 'length', self::MODEL_BOTH),
         array('category_id', 'require', '分类不能为空', self::MUST_VALIDATE , 'regex', self::MODEL_INSERT),
         array('category_id', 'require', '分类不能为空', self::EXISTS_VALIDATE , 'regex', self::MODEL_UPDATE),
@@ -181,9 +182,22 @@ class DocumentModel extends Model{
             return false;
         }
 
+        //行为记录
+        if($id){
+        	switch ($data['category_id']){
+        		case 2:
+        			//发表博客
+        			action_log('add_document_blog', 'document', $id, UID);
+        			break;
+        		case 4:
+        			//发表讨论
+        			action_log('add_document_topic', 'document', $id, UID);
+        			break;
+        	}
+        }
+
         //内容添加或更新完成
         return $data;
-
     }
 
     /**
@@ -464,6 +478,8 @@ class DocumentModel extends Model{
         $link = I('post.link_id');
         if(empty($link)){
             return 0;
+        } else if(is_numeric($link)){
+            return $link;
         }
         $res = D('Url')->update(array('url'=>$link));
         return $res['id'];

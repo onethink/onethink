@@ -19,33 +19,6 @@ class ArticleController extends \Admin\Controller\AdminController {
 	/* 保存允许访问的公共方法 */
 	static protected $allow = array( 'draftbox','mydocument');
 
-    /* 左侧节点菜单定义 */
-    static protected $nodes =   array(
-        array(
-            'title'=>'文档列表', 'url'=>'article/index', 'group'=>'内容','hide'=>true,
-            'operator'=>array(
-                //权限管理页面的按钮
-                array('title'=>'新增','url'=>'article/add'),
-                array('title'=>'编辑','url'=>'article/edit'),
-                array('title'=>'改变状态','url'=>'article/setStatus'),
-                array('title'=>'保存','url'=>'article/update'),
-            	array('title'=>'保存草稿','url'=>'article/autoSave'),
-            	array('title'=>'移动','url'=>'article/move'),
-            	array('title'=>'复制','url'=>'article/copy'),
-            	array('title'=>'粘贴','url'=>'article/paste'),
-            	array('title'=>'导入','url'=>'article/batchOperate'),
-            ),
-        ),
-    	array(
-    		'title'=>'回收站', 'url'=>'article/recycle', 'group'=>'内容',
-    		'operator'=>array(
-    			//权限管理页面的按钮
-    			array('title'=>'还原','url'=>'article/permit'),
-    			array('title'=>'清空','url'=>'article/clear'),
-    		),
-    	),
-    );
-
     private $cate_id        =   null; //文档分类id
 
     /**
@@ -185,6 +158,37 @@ class ArticleController extends \Admin\Controller\AdminController {
             $cate_id = $this->cate_id;
         }
 
+        //获取模型信息
+        $model = M('Model')->getByName('document');
+        
+        //解析列表规则
+        $fields = array();
+        $grids  = preg_split('/[;\r\n]+/s', $model['list_grid']);
+        foreach ($grids as &$value) {
+            // 字段:标题:链接
+            $val      = explode(':', $value);
+            // 支持多个字段显示
+            $field   = explode(',', $val[0]);
+            $value    = array('field' => $field, 'title' => $val[1]);
+            if(isset($val[2])){
+                // 链接信息
+                $value['href']  =   $val[2];
+                // 搜索链接信息中的字段信息
+                preg_replace_callback('/\[([a-z_]+)\]/', function($match) use(&$fields){$fields[]=$match[1];}, $value['href']); 
+            }
+            if(strpos($val[1],'|')){
+                // 显示格式定义
+                list($value['title'],$value['format'])    =   explode('|',$val[1]);
+            }
+            foreach($field as $val){
+                $array  =   explode('|',$val);
+                $fields[] = $array[0];
+            }
+        }
+
+        // 过滤重复字段信息 TODO: 传入到查询方法
+        $fields = array_unique($fields);
+
         //获取对应分类下的模型
         if(!empty($cate_id)){   //没有权限则不查询数据
             //获取分类绑定的模型
@@ -207,6 +211,9 @@ class ArticleController extends \Admin\Controller\AdminController {
                         }
                 }
             }
+
+            $this->assign('list_grids', $grids);
+            $this->assign('model_list', $model);
             $this->display($template);
         }else{
             $this->error('非法的文档分类');
@@ -255,7 +262,7 @@ class ArticleController extends \Admin\Controller\AdminController {
 
         $prefix   = C('DB_PREFIX');
         $l_table  = $prefix.('document');
-        $r_table  = $prefix.('document_model_article');
+        $r_table  = $prefix.('document_article');
         $list     = M()->field( 'l.id id,l.pid pid,l.title title,l.update_time update_time,l.uid uid,l.status status,r.content content' )
                        ->table( $l_table.' l' )
                        ->where( $map )
@@ -273,7 +280,7 @@ class ArticleController extends \Admin\Controller\AdminController {
         //检查该分类是否允许发布内容
         $allow_publish  =   get_category($cate_id, 'allow_publish');
 
-        $this->assign('model',  array(1));
+        $this->assign('model',  array(2));
         $this->assign('status', $status);
         $this->assign('list',   $list);
         $this->assign('allow',  $allow_publish);
@@ -398,7 +405,6 @@ class ArticleController extends \Admin\Controller\AdminController {
 
         /* 获取要编辑的扩展模型模板 */
         $model      =   get_document_model($model_id);
-        $template   =   strtolower($model['name']);
 
         //处理结果
         $info['pid']            =   $_GET['pid']?$_GET['pid']:0;
@@ -411,16 +417,13 @@ class ArticleController extends \Admin\Controller\AdminController {
         }
 
         //获取表单字段排序
-        $fields = json_decode(get_document_model($model_id, 'fields'), true);
-
+        $fields = get_model_attribute($model['id']);
         $this->assign('info',       $info);
-        $this->assign('template',   $template);
-        $this->assign('field',  	$fields);
-        $this->assign('extend',     $this->fetch($template));
+        $this->assign('fields',     $fields);
         $this->assign('type_list',  get_type_bycate($cate_id));
-
-        $this->meta_title       =   '新增'.$model['title'];
-        $this->display('edit');
+        $this->assign('model',      $model);
+        $this->meta_title = '新增'.$model['title'];
+        $this->display();
     }
 
     /**
@@ -442,25 +445,23 @@ class ArticleController extends \Admin\Controller\AdminController {
         if(!$data){
             $this->error($Document->getError());
         }
-        $data['create_time']    =   empty($data['create_time']) ? '' : date('Y-m-d H:i',$data['create_time']);
-        $data['dateline']       =   empty($data['dateline']) ? '' : date('Y-m-d H:i',$data['dateline']);
+
         if($data['pid']){
             // 获取上级文档
             $article        =   M('Document')->field('id,title,type')->find($data['pid']);
             $this->assign('article',$article);
         }
-        $this->assign('info', $data);
+        $this->assign('data', $data);
         $this->assign('model_id', $data['model_id']);
+        
+        /* 获取要编辑的扩展模型模板 */
+        $model      =   get_document_model($data['model_id']);
+        $this->assign('model',      $model);
 
         //获取表单字段排序
-        $fields = json_decode(get_document_model($data['model_id'], 'fields'), true);
-        $this->assign('field',  $fields);
+        $fields = get_model_attribute($model['id']);
+        $this->assign('fields',     $fields);
 
-        /* 获取要编辑的模型模板 */
-        $data['template']   =   strtolower(get_document_model($data['model_id'], 'name'));
-        //获取扩展模板
-        $extend = $this->fetch($data['template']);
-        $this->assign('extend', $extend);
 
         //获取当前分类的文档类型
         $this->assign('type_list', get_type_bycate($data['category_id']));
@@ -727,13 +728,12 @@ class ArticleController extends \Admin\Controller\AdminController {
         	$this->error($check['info']);
         }
 
-        if(!empty($moveList)) {// 移动
+        if(!empty($moveList)) {// 移动	TODO:检查name重复
         	foreach ($moveList as $key=>$value){
         		$Model              =   M('Document');
         		$map['id']          =   $value;
         		$data['category_id']=   $cate_id;
 				$data['pid'] 		=   $pid;
-				$data['name']		=	'';
 				//获取root
 				if($pid == 0){
 					$data['root'] = 0;

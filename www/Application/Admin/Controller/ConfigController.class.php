@@ -17,24 +17,6 @@ namespace Admin\Controller;
 class ConfigController extends AdminController {
 
     /**
-     * 左侧导航节点定义
-     * @author 麦当苗儿 <zuojiazi@vip.qq.com>
-     */
-    static protected $nodes = array(
-        array( 'title' => '网站设置', 'url' => 'Config/group', 'group' => '系统设置'),
-        array( 'title' => '配置管理', 'url' => 'Config/index', 'group' => '系统设置',
-            'operator'=>array(
-                array('title'=>'编辑','url'=>'Config/edit','tip'=>'新增编辑和保存配置'),
-                array('title'=>'删除','url'=>'Config/del','tip'=>'删除配置'),
-            	array('title'=>'新增','url'=>'Config/add','tip'=>'新增配置'),
-            	array('title'=>'保存','url'=>'Config/save','tip'=>'保存配置'),
-            ),
-        ),
-        // array( 'title' => '静态规则设置', 'url' => 'System/index1', 'group' => '系统设置'),
-        // array( 'title' => 'SEO优化设置', 'url' => 'System/index2', 'group' => '系统设置'),
-    );
-
-    /**
      * 配置管理
      * @author 麦当苗儿 <zuojiazi@vip.qq.com>
      */
@@ -88,6 +70,8 @@ class ConfigController extends AdminController {
             if($data){
                 if($Config->save()){
 					S('DB_CONFIG_DATA',null);
+					//记录行为
+					action_log('update_config','config',$data['id'],UID);
                     $this->success('更新成功', U('index'));
                 } else {
                     $this->error('更新失败');
@@ -139,6 +123,8 @@ class ConfigController extends AdminController {
         $map = array('id' => array('in', $id) );
         if(M('Config')->where($map)->delete()){
 			S('DB_CONFIG_DATA',null);
+			//记录行为
+			action_log('update_config','config',$id,UID);
             $this->success('删除成功');
         } else {
             $this->error('删除失败！');
@@ -147,13 +133,15 @@ class ConfigController extends AdminController {
 
     // 获取某个标签的配置参数
     public function group() {
-        $id     =   I('get.id',0);
+        $id     =   I('get.id',1);
         $type   =   C('CONFIG_GROUP_LIST');
         $list   =   M("Config")->where(array('status'=>1,'group'=>$id))->field('id,name,title,extra,value,remark,type')->order('sort')->select();
         if($list) {
             $this->assign('list',$list);
         }
+		$this->assign('id',$id);
         $this->meta_title = $type[$id].'设置';
         $this->display();
     }
+
 }

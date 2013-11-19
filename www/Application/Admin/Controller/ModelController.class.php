@@ -8,6 +8,7 @@
 // +----------------------------------------------------------------------
 
 namespace Admin\Controller;
+use Admin\Model\AuthGroupModel;
 
 /**
  * 模型管理控制器
@@ -16,35 +17,47 @@ namespace Admin\Controller;
 
 class ModelController extends AdminController {
 
-    /**
-     * 左侧导航节点定义
-     * @author huajie <banhuajie@163.com>
-     */
-    static protected $nodes = array(
-        array(
-            'title'     =>  '模型管理',
-            'url'       =>  'Model/index',
-            'group'     =>  '扩展',
-            'operator'  =>  array(
-                //权限管理页面的五种按钮
-                array('title'=>'新增','url'=>'model/add'),
-                array('title'=>'编辑','url'=>'model/edit'),
-                array('title'=>'改变状态','url'=>'model/setStatus'),
-                array('title'=>'保存数据','url'=>'model/update'),
-            ),
-        ),
-    );
 
     /**
-     * 初始化方法，与AddonsController同步
-     * @see AdminController::_initialize()
-     * @author huajie <banhuajie@163.com>
+     * 检测是否是需要动态判断的权限
+     * @return boolean|null
+     *      返回true则表示当前访问有权限
+     *      返回false则表示当前访问无权限
+     *      返回null，则会进入checkRule根据节点授权判断权限
+     *
+     * @author 朱亚杰  <xcoolcc@gmail.com>
      */
-    public function _initialize(){
-        $this->assign('_extra_menu',array(
-                '已装插件后台'=>D('Addons')->getAdminList(),
-        ));
-        parent::_initialize();
+    protected function checkDynamic(){
+        if(IS_ROOT){
+            return true;//管理员允许访问任何页面
+        }
+        //模型权限业务检查逻辑
+        //
+        //提供的工具方法：
+        //$AUTH_GROUP = D('AuthGroup');
+        // $AUTH_GROUP->checkModelId($mid);      //检查模型id列表是否全部存在
+        // AuthGroupModel::getModelOfGroup($gid);//获取某个用户组拥有权限的模型id
+        $model_ids = AuthGroupModel::getAuthModels(UID);
+        $id        = I('id');
+        switch(strtolower(ACTION_NAME)){
+            case 'edit':    //编辑
+            case 'update':  //更新
+                if ( in_array($id,$model_ids) ) {
+                    return true;
+                }else{
+                    return false;
+                }
+            case 'setstatus': //更改状态
+                if ( is_array($id) && array_intersect($id,(array)$model_ids)==$id ) {
+                    return true;
+                }elseif( in_array($id,$model_ids) ){
+                    return true;
+                }else{
+                    return false;
+                }
+        }
+
+        return null;//不明,需checkRule
     }
 
     /**
@@ -53,7 +66,7 @@ class ModelController extends AdminController {
      */
     public function index(){
         $map = array('status'=>array('gt',-1));
-        $list = $this->lists('DocumentModel',$map);
+        $list = $this->lists('Model',$map);
         int_to_string($list);
         $this->assign('_list', $list);
         $this->meta_title = '模型管理';
@@ -73,7 +86,7 @@ class ModelController extends AdminController {
         }
 
         /*拼接参数并修改状态*/
-        $Model = 'DocumentModel';
+        $Model = 'Model';
         $map = array();
         if(is_array($ids)){
             $map['id'] = array('in', implode(',', $ids));
@@ -94,8 +107,12 @@ class ModelController extends AdminController {
      * @author huajie <banhuajie@163.com>
      */
     public function add(){
-        $this->meta_title = '新增文档模型';
-        $this->display('edit');
+    	//获取所有的模型
+    	$models = M('Model')->where(array('extend'=>0))->field('id,title')->select();
+
+    	$this->assign('models', $models);
+        $this->meta_title = '新增模型';
+        $this->display();
     }
 
     /**
@@ -109,48 +126,60 @@ class ModelController extends AdminController {
         }
 
         /*获取一条记录的详细数据*/
-        $Model = M('DocumentModel');
+        $Model = M('Model');
         $data = $Model->field(true)->find($id);
         if(!$data){
             $this->error($Model->getError());
         }
 
-        //获取模型字段
-        if(empty($data['fields'])){
+        /* 获取模型排序字段 */
+        $fields = json_decode($data['field_sort'], true);
 
-        	/* 获取基础模型字段 */
-        	$base = M('Document')->getDbFields();
-        	//id字段不需要排序
-        	if(in_array('id', $base)){
-        		unset($base[array_search('id', $base)]);
+        if(empty($fields)){		//未排序
+        	$base_fields = M('Attribute')->where(array('model_id'=>$data['id'],'is_show'=>1))->field('id,name,title')->select();
+        	//是否继承了其他模型
+        	$extend_fields = array();
+        	if($data['extend'] != 0){
+        		$extend_fields = M('Attribute')->where(array('model_id'=>$data['extend'],'is_show'=>1))->field('id,name,title')->select();
         	}
-        	$base = array_flip($base);
-        	//排序起始值从1开始
-        	foreach ($base as $key=>$value){
-        		$base[$key] = $value + 1;
+        	$fields = array_merge($base_fields, $extend_fields);
+        	//默认分组设为1
+        	foreach ($fields as $key=>$value){
+				$fields[$key]['group'] = 1;
         	}
-
-        	/* 获取扩展模型字段 */
-        	$extend = D(ucfirst($data['name']), 'Logic')->getDbFields();
-        	$extend = empty($extend) ? array() : $extend;
-        	//id字段不需要排序
-        	if(in_array('id', $extend)){
-        		unset($extend[array_search('id', $extend)]);
+        }else{						//已排序
+        	//查询字段数据
+			$fields_list = array();
+        	foreach ($fields as $key=>$value){
+        		foreach ($value as $k=>$v){
+        			$info = M('Attribute')->where(array('id'=>$v))->field('id,name,title,is_show')->find();
+        			if(!empty($info)){
+        				$info['group'] = $key;
+        				$fields_list[] = $info;
+        			}
+        		}
         	}
-        	$extend = array_flip($extend);
-        	//扩展里的排序从-1开始
-        	foreach ($extend as $key=>$value){
-        		$extend[$key] = ($value + 1) * -1;
+        	//检查字段分组规则是否被修改
+        	$keys = array_keys($fields);
+        	$group = array_keys(parse_field_attr($data['field_group']));
+        	foreach ($keys as $value){
+        		if(!in_array($value, $group)){
+					//重置字段分组
+        			foreach ($fields_list as $k=>$v){
+        				$fields_list[$k]['group'] = 1;
+        			}
+        		}
         	}
-
-        	$data['fields'] = empty($extend) ? array() : array_merge($base, $extend);
-        }else{
-        	$data['fields'] = json_decode($data['fields'], true);
+        	$fields = $fields_list;
         }
 
+        //获取所有的模型
+    	$models = M('Model')->where(array('extend'=>0))->field('id,title')->select();
 
-        $this->assign($data);
-        $this->meta_title = '编辑文档模型';
+    	$this->assign('models', $models);
+    	$this->assign('fields', $fields);
+        $this->assign('info', $data);
+        $this->meta_title = '编辑模型';
         $this->display();
     }
 
@@ -159,9 +188,10 @@ class ModelController extends AdminController {
      * @author huajie <banhuajie@163.com>
      */
     public function update(){
-        $res = D('DocumentModel')->update();
+        $res = D('Model')->update();
+
         if(!$res){
-            $this->error(D('DocumentModel')->getError());
+            $this->error(D('Model')->getError());
         }else{
             if($res['id']){
                 $this->success('更新成功', U('index'));
@@ -171,4 +201,27 @@ class ModelController extends AdminController {
         }
     }
 
+    /**
+     * 生成一个模型
+     * @author huajie <banhuajie@163.com>
+     */
+    public function generate(){
+    	if(!IS_POST){
+    		//获取所有的数据表
+    		$tables = D('Model')->getTables();
+
+    		$this->assign('tables', $tables);
+    		$this->meta_title = '生成模型';
+    		$this->display();
+    	}else{
+    		$table = I('post.table');
+    		empty($table) && $this->error('请选择要生成的数据表！');
+			$res = D('Model')->generate($table);
+			if($res){
+				$this->success('生成模型成功！', U('index'));
+			}else{
+				$this->error(D('Model')->getError());
+			}
+    	}
+    }
 }
